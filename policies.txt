@@ -1,0 +1,29 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:PutItem",
+                "dynamodb:GetItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:eu-north-1:514190630121:table/plc_sensor_data",
+                "arn:aws:dynamodb:eu-north-1:514190630121:table/plc_sensor_data/*"
+            ]
+        }
+    ]
+}
+
+Fix IAM Permissions
+Option 1: Add DynamoDB Policy to Existing Role
+Go to IAM Console → Roles
+Find role: aws-elasticbeanstalk-ec2-role
+Add permissions → Create inline policy
+Use this JSON:

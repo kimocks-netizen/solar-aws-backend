@@ -1,0 +1,8 @@
+| Command     | Purpose                                                     |
+| ----------- | ----------------------------------------------------------- |
+| `eb init`   | Initialize project (only once)                              |
+| `eb create` | Create a new environment (only once)                        |
+| `eb deploy` | **Redeploy new version (use this after every code update)** |
+| `eb open`   | Open deployed URL in browser                                |
+| `eb logs`   | View server logs on AWS                                     |
+| `eb status` | Check environment health and version                        |

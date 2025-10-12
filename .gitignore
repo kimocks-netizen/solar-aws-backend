@@ -1,0 +1,39 @@
+# Node modules
+node_modules/
+
+# Environment files
+.env
+.env.*
+
+# Certificates and keys
+certs/
+*.pem
+*.key
+*.crt
+
+# All hidden files and folders
+.*
+!.gitignore
+!.platform/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# AWS SAM build artifacts
+.aws-sam/
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
