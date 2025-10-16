@@ -117,3 +117,6 @@
 }
 
 🎉 Successfully sent 5 messages from database to IoT!
+
+
+{ "topic_name" : { "S" : "backend/data" }, "message" : { "S" : "Hello IoT from backend!" }, "rule_timestamp" : { "N" : "1760605004127" } }
