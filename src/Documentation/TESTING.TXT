@@ -1,0 +1,61 @@
+# Create script to send data from plc_sensor_data to IoT
+cat > send_db_to_iot.py << 'EOF'
+import boto3
+import json
+import time
+from decimal import Decimal
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super(DecimalEncoder, self).default(obj)
+
+def send_db_data_to_iot():
+    # Initialize clients
+    dynamodb = boto3.resource('dynamodb', region_name='eu-north-1')
+    iot_client = boto3.client('iot-data', region_name='eu-north-1')
+    
+    # Get data from plc_sensor_data table
+    table = dynamodb.Table('plc_sensor_data')
+    
+    try:
+        print("📤 Sending data FROM database TO IoT...")
+        response = table.scan(Limit=5)  # Get 5 items for testing
+        
+        for item in response['Items']:
+            # Create IoT message payload
+            payload = {
+                "source": "database",
+                "device_id": item.get('device_id', 'unknown'),
+                "sensor_id": item.get('sensor_id', 'unknown'),
+                "timestamp": item.get('timestamp', ''),
+                "current": item.get('current', 0),
+                "pressure": item.get('pressure', 0),
+                "status": item.get('status', 'unknown'),
+                "sent_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+            }
+            
+            # Define IoT topic
+            topic = f"database/to/iot/{item.get('device_id', 'unknown')}"
+            
+            # Send to IoT
+            iot_client.publish(
+                topic=topic,
+                payload=json.dumps(payload, cls=DecimalEncoder)
+            )
+            
+            print(f"✅ Sent to topic: {topic}")
+            print(f"   Data: {json.dumps(payload, cls=DecimalEncoder, indent=2)}")
+            time.sleep(1)
+            
+        print(f"\n🎉 Successfully sent {len(response['Items'])} messages from database to IoT!")
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+if __name__ == "__main__":
+    send_db_data_to_iot()
+EOF
+
+python3 send_db_to_iot.py

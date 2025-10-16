@@ -1,4 +1,11 @@
 const PlcModel = require('../models/PlcModel');
+const AWS = require('aws-sdk');
+
+AWS.config.update({ region: 'eu-north-1' });
+
+const iotdata = new AWS.IotData({
+  endpoint: 'a1zrj214piv3x3-ats.iot.eu-north-1.amazonaws.com'
+});
 
 class IotController {
   static async storeData(req, res) {
@@ -45,6 +52,35 @@ class IotController {
       res.end(JSON.stringify({
         success: false,
         error: 'Failed to fetch data'
+      }));
+    }
+  }
+
+  static async testIoT(req, res) {
+    try {
+      console.log('🧪 Testing direct IoT publish...');
+      
+      const result = await iotdata.publish({
+        topic: 'backend/data',
+        payload: JSON.stringify({ message: 'Hello IoT from backend!' })
+      }).promise();
+      
+      console.log('✅ IoT test successful:', result);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        message: 'IoT test successful',
+        result: result
+      }));
+    } catch (error) {
+      console.error('❌ IoT test failed:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: false,
+        error: 'IoT test failed',
+        details: error.message,
+        code: error.code
       }));
     }
   }

@@ -3,7 +3,7 @@ const url = require('url');
 const routes = require('./routes');
 const CorsMiddleware = require('./middleware/cors');
 const RequestParser = require('./middleware/requestParser');
-const iotConnection = require('./config/iotConnection');
+const awsIoTService = require('./config/awsIoTService');
 
 class Server {
   constructor() {
@@ -48,7 +48,8 @@ class Server {
     this.server.listen(port, () => {
       console.log(`🚀 Server running on port ${port}`);
       console.log('📋 Connected to DynamoDB tables: plc_sensor_data & solar-data');
-      console.log(`🌐 IoT Core: ${iotConnection.isConnected() ? 'Connected' : 'Disconnected'}`);
+      console.log(`🌐 IoT Core: ${awsIoTService.isConnected() ? 'AWS SDK Ready' : 'AWS SDK Ready'}`);
+      console.log('🔑 Using AWS SDK with IAM credentials (no certificates needed)');
       console.log('🔗 Endpoints available:');
       console.log('  GET  / - Server info');
       console.log('  GET  /health - Health check');

@@ -1,0 +1,86 @@
+# Create IoT topic subscriber to see the data
+cat > subscribe_to_iot_topics.py << 'EOF'
+import boto3
+import json
+import time
+from datetime import datetime
+
+print("📡 IoT Topic Subscriber - Monitoring for Database Data")
+print("=" * 60)
+
+# Since we can't directly subscribe with boto3, we'll monitor the database
+# for messages that were sent from backend to IoT and back to database
+dynamodb = boto3.resource('dynamodb', region_name='eu-north-1')
+table = dynamodb.Table('plc_sensor_data')
+
+print("🔍 Monitoring plc_sensor_data table for backend-sent messages...")
+print("📊 Looking for messages with 'backend' in source field...")
+print("⏳ Checking every 5 seconds... (Press Ctrl+C to stop)")
+print("-" * 60)
+
+last_check_time = datetime.now()
+
+try:
+    while True:
+        try:
+            # Scan for messages with 'backend' in source
+            response = table.scan(
+                FilterExpression='contains(#src, :backend)',
+                ExpressionAttributeNames={'#src': 'source'},
+                ExpressionAttributeValues={':backend': 'backend'},
+                Limit=20
+            )
+            
+            current_time = datetime.now()
+            
+            # Filter for recent messages (last 2 minutes)
+            recent_messages = []
+            for item in response['Items']:
+                if 'sent_at' in item:
+                    try:
+                        # Parse timestamp
+                        sent_time_str = item['sent_at']
+                        if 'T' in sent_time_str:
+                            sent_time = datetime.fromisoformat(sent_time_str.replace('Z', '+00:00'))
+                            # Check if message is from last 2 minutes
+                            if (current_time - sent_time).total_seconds() < 120:
+                                recent_messages.append(item)
+                    except Exception as e:
+                        pass
+            
+            if recent_messages:
+                print(f"\n[{current_time.strftime('%H:%M:%S')}] 📨 Found {len(recent_messages)} recent backend messages:")
+                
+                for i, msg in enumerate(recent_messages[:5], 1):  # Show first 5
+                    device_id = msg.get('device_id', 'unknown')
+                    source = msg.get('source', 'unknown')
+                    current_val = msg.get('current', 'N/A')
+                    pressure_val = msg.get('pressure', 'N/A')
+                    status = msg.get('status', 'N/A')
+                    sent_at = msg.get('sent_at', 'N/A')
+                    
+                    print(f"   📡 Message {i}:")
+                    print(f"      Device: {device_id}")
+                    print(f"      Source: {source}")
+                    print(f"      Current: {current_val}, Pressure: {pressure_val}")
+                    print(f"      Status: {status}")
+                    print(f"      Sent At: {sent_at}")
+                    print()
+                
+                print("🎉 SUCCESS: Backend data successfully sent to IoT and received!")
+                print("-" * 60)
+            else:
+                print(f"[{current_time.strftime('%H:%M:%S')}] ⏳ No recent backend messages found...")
+            
+            time.sleep(5)  # Check every 5 seconds
+            
+        except Exception as e:
+            print(f"❌ Error checking messages: {e}")
+            time.sleep(5)
+            
+except KeyboardInterrupt:
+    print("\n👋 Stopping IoT topic monitoring...")
+    print("✅ Monitoring completed!")
+EOF
+
+echo "✅ IoT topic subscriber created!"

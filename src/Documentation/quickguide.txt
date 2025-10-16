@@ -6,3 +6,8 @@
 | `eb open`   | Open deployed URL in browser                                |
 | `eb logs`   | View server logs on AWS                                     |
 | `eb status` | Check environment health and version                        |
+
+
+eb deploy backend-solar-env 
+eb use backend-solar-env
+eb logs --all --stream

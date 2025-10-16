@@ -1,0 +1,29 @@
+const awsIot = require('aws-iot-device-sdk');
+
+// Replace with your actual paths and values
+const device = awsIot.device({
+   keyPath: './private.key',
+   certPath: './certificate.pem.crt',
+   caPath: './AmazonRootCA1.pem',
+   clientId: 'your-unique-client-id', // Must be unique within your AWS account
+   host: 'your-custom-endpoint.iot.your-region.amazonaws.com'
+});
+
+device.on('connect', function() {
+  console.log('Connected to AWS IoT Core');
+  // Publish data to a topic
+  device.publish('my/topic', JSON.stringify({ temperature: 25.5, humidity: 60 }));
+  console.log('Message published');
+});
+
+device.on('error', function(error) {
+  console.error('Connection error:', error);
+});
+
+device.on('close', function() {
+  console.log('Connection closed');
+});
+
+device.on('reconnect', function() {
+  console.log('Reconnecting...');
+});

@@ -1,5 +1,5 @@
 const PlcModel = require('../models/PlcModel');
-const iotConnection = require('../config/iotConnection');
+const awsIoTService = require('../config/awsIoTService');
 const { uuidv4 } = require('../config/dynamoDB');
 
 class PlcController {
@@ -19,7 +19,7 @@ class PlcController {
       
       const plcTopic = topic || 'plc/simulator/commands';
       
-      await iotConnection.publish(plcTopic, payload);
+      await awsIoTService.publishToIoT(plcTopic, payload);
       
       console.log(`✅ Data sent to PLCnextSimulator via topic: ${plcTopic}`);
       
@@ -68,7 +68,7 @@ class PlcController {
         
         const topic = `plc/simulator/data/${item.device_id || 'unknown'}`;
         
-        await iotConnection.publish(topic, payload);
+        await awsIoTService.publishToIoT(topic, payload);
         sentCount++;
         
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -104,7 +104,7 @@ class PlcController {
           name: 'PLCnextSimulator',
           endpoint: 'a1zrj214piv3x3-ats.iot.eu-north-1.amazonaws.com'
         },
-        iot_connection: iotConnection.isConnected() ? 'connected' : 'disconnected',
+        iot_connection: awsIoTService.isConnected() ? 'connected' : 'disconnected',
         recommended_topics: {
           send_commands: 'plc/simulator/commands',
           send_data: 'plc/simulator/data/{device_id}',

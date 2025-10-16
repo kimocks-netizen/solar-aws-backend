@@ -1,6 +1,6 @@
 const PlcModel = require('../models/PlcModel');
 const WeatherModel = require('../models/WeatherModel');
-const iotConnection = require('../config/iotConnection');
+const awsIoTService = require('../config/awsIoTService');
 const { uuidv4 } = require('../config/dynamoDB');
 
 class IoTSenderController {
@@ -29,7 +29,7 @@ class IoTSenderController {
         
         const topic = `nodejs/backend/all/${item.device_id || 'unknown'}`;
         
-        await iotConnection.publish(topic, payload);
+        await awsIoTService.publishToIoT(topic, payload);
         sentCount++;
         
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -83,7 +83,7 @@ class IoTSenderController {
         
         const topic = `nodejs/backend/recent/${item.device_id || 'unknown'}`;
         
-        await iotConnection.publish(topic, payload);
+        await awsIoTService.publishToIoT(topic, payload);
         sentCount++;
         
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -136,7 +136,7 @@ class IoTSenderController {
         
         const topic = `nodejs/backend/test/sensor_${i + 1}`;
         
-        await iotConnection.publish(topic, payload);
+        await awsIoTService.publishToIoT(topic, payload);
         sentCount++;
         
         await new Promise(resolve => setTimeout(resolve, 500));

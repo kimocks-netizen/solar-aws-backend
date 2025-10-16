@@ -52,6 +52,10 @@ class IoTConnection {
       
       this.client.on('error', (error) => {
         console.log('❌ IoT connection error:', error.message);
+        // Don't spam errors in local development
+        if (error.message.includes('unable to get local issuer certificate')) {
+          console.log('⚠️ Running locally - IoT features will work when deployed to AWS');
+        }
         // Prevent reconnection spam
         if (this.client) {
           this.client.end();
