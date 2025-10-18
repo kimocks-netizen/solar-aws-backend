@@ -7,6 +7,8 @@ class IoTConnection {
     this.client = null;
     this.host = 'a1zrj214piv3x3-ats.iot.eu-north-1.amazonaws.com';
     this.initConnection();
+
+    //arn:aws:iot:eu-north-1:514190630121:thing/PLCnextSimulator
   }
 
   initConnection() {
@@ -37,7 +39,11 @@ class IoTConnection {
       
       this.client.on('connect', () => {
         console.log('✅ Connected to AWS IoT Core');
+        // Subscribe to multiple PLC-related topics
         this.client.subscribe('PLCnextSimulator/topic', { qos: 1 });
+        this.client.subscribe('plc/simulator/status', { qos: 1 });
+        this.client.subscribe('plc/simulator/response', { qos: 1 });
+        console.log('📡 Subscribed to PLC topics');
       });
       
       this.client.on('message', (topic, message) => {
@@ -46,6 +52,10 @@ class IoTConnection {
       
       this.client.on('error', (error) => {
         console.log('❌ IoT connection error:', error.message);
+        // Don't spam errors in local development
+        if (error.message.includes('unable to get local issuer certificate')) {
+          console.log('⚠️ Running locally - IoT features will work when deployed to AWS');
+        }
         // Prevent reconnection spam
         if (this.client) {
           this.client.end();
@@ -67,6 +77,23 @@ class IoTConnection {
 
   getClient() {
     return this.client;
+  }
+
+  publish(topic, payload) {
+    return new Promise((resolve, reject) => {
+      if (!this.isConnected()) {
+        reject(new Error('IoT client not connected'));
+        return;
+      }
+      
+      this.client.publish(topic, JSON.stringify(payload), { qos: 1 }, (error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    });
   }
 }
 

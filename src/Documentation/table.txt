@@ -1,0 +1,46 @@
+You
+9:19 PM
+{
+  "deviceId": "PLC001",
+  "voltage": 230.5,
+  "current": 4.2,
+  "power": 967.1,
+  "timestamp": "2025-10-12T18:20:30Z"
+}
+Hover over a message to pin it
+keep
+brighton chikomo
+9:40 PM
+{
+  "voltage": 230.5,
+  "current": 4.2,
+  "power": 967.1,
+}
+brighton chikomo
+9:45 PM
+Topic: Date/Meter1
+{
+ "deviceid": xx,
+  "voltage": 230.5,
+  "current": 4.2,
+  "power": 967.1,
+"power_factor: 0.9"
+}
+
+
+Topic: Date/Inveter1
+{
+  "voltage": 230.5,
+  "current": 4.2,
+  "power": 967.1,
+  "Operation_percent": 967.1,
+}
+brighton chikomo
+10:07 PM
+Topic: Date/Weather
+{
+  "location": ,
+  "irradiance": 4.2,
+  "temperature": 967.1,
+}
+hsu-ohpx-aap

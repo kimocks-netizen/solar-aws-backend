@@ -1,0 +1,320 @@
+# Create the correct backend configuration
+cat > backend_iot_config.js << 'EOF'
+const AWS = require('aws-sdk');
+
+// AWS Configuration
+const AWS_REGION = 'eu-north-1';
+AWS.config.update({ region: AWS_REGION });
+
+// ✅ CORRECT: Use the IoT Data Endpoint for publishing messages
+const iotdata = new AWS.IotData({
+    endpoint: 'https://a1zrj214piv3x3-ats.iot.eu-north-1.amazonaws.com'
+});
+
+// ❌ WRONG: Don't use the Thing ARN for data publishing
+// const thingArn = 'arn:aws:iot:eu-north-1:514190630121:thing/PLCnextSimulator'; // This is NOT for data
+
+// Function to send data to IoT (targeting your PLCnextSimulator)
+async function sendDataToPLCSimulator(data) {
+    try {
+        const payload = {
+            ...data,
+            target_device: 'PLCnextSimulator',  // Reference the thing name
+            timestamp: new Date().toISOString(),
+            source: 'backend'
+        };
+        
+        // Send to a topic that your PLCnextSimulator can subscribe to
+        const topic = 'plc/simulator/commands';  // or whatever topic your PLC listens to
+        
+        const params = {
+            topic: topic,
+            payload: JSON.stringify(payload)
+        };
+        
+        const result = await iotdata.publish(params).promise();
+        console.log(`✅ Data sent to PLCnextSimulator via topic: ${topic}`);
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Error sending data to PLC:', error);
+        throw error;
+    }
+}
+
+// Function to send database data to PLC
+async function sendDatabaseDataToPLC(databaseItems) {
+    try {
+        let sentCount = 0;
+        
+        for (const item of databaseItems) {
+            const payload = {
+                device_id: item.device_id,
+                sensor_id: item.sensor_id,
+                current: item.current,
+                pressure: item.pressure,
+                status: item.status,
+                original_timestamp: item.timestamp,
+                sent_to_plc_at: new Date().toISOString(),
+                source: 'database_to_plc'
+            };
+            
+            // Send to PLC-specific topic
+            const topic = `plc/simulator/data/${item.device_id || 'unknown'}`;
+            
+            await iotdata.publish({
+                topic: topic,
+                payload: JSON.stringify(payload)
+            }).promise();
+            
+            sentCount++;
+            console.log(`📤 Sent record ${sentCount} to PLC topic: ${topic}`);
+            
+            // Small delay to avoid throttling
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        return sentCount;
+    } catch (error) {
+        console.error('❌ Error sending database data to PLC:', error);
+        throw error;
+    }
+}
+
+module.exports = {
+    iotdata,
+    sendDataToPLCSimulator,
+    sendDatabaseDataToPLC
+};
+EOF
+
+echo "✅ Backend IoT configuration created!"
+
+
+suggestion 2
+# Create PLC-specific backend endpoints
+cat > plc_backend_endpoints.js << 'EOF'
+// Add these endpoints to your existing enhanced_server.js
+
+// Send data specifically to PLCnextSimulator
+app.post('/send-to-plc', async (req, res) => {
+    try {
+        console.log('📤 Sending data to PLCnextSimulator...');
+        
+        const { data, topic } = req.body;
+        
+        const payload = {
+            target_device: 'PLCnextSimulator',
+            data: data || 'Test data from backend',
+            timestamp: new Date().toISOString(),
+            source: 'nodejs_backend_to_plc',
+            message_id: require('uuid').v4()
+        };
+        
+        const plcTopic = topic || 'plc/simulator/commands';
+        
+        const iotParams = {
+            topic: plcTopic,
+            payload: JSON.stringify(payload)
+        };
+        
+        await iotdata.publish(iotParams).promise();
+        
+        console.log(`✅ Data sent to PLCnextSimulator via topic: ${plcTopic}`);
+        
+        res.json({
+            success: true,
+            message: `Data sent to PLCnextSimulator`,
+            topic: plcTopic,
+            target_device: 'PLCnextSimulator',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error sending data to PLC:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Send database data specifically to PLCnextSimulator
+app.post('/send-database-to-plc', async (req, res) => {
+    try {
+        console.log('📤 Sending database data to PLCnextSimulator...');
+        
+        const limit = parseInt(req.body.limit) || 10;
+        
+        // Get data from database
+        const params = {
+            TableName: 'plc_sensor_data',
+            Limit: limit
+        };
+        
+        const result = await dynamodb.scan(params).promise();
+        let sentCount = 0;
+        
+        for (const item of result.Items) {
+            const convertedItem = convertDynamoDBItem(item);
+            
+            const payload = {
+                target_device: 'PLCnextSimulator',
+                device_id: convertedItem.device_id || 'unknown',
+                sensor_id: convertedItem.sensor_id || 'unknown',
+                current: convertedItem.current || 0,
+                pressure: convertedItem.pressure || 0,
+                status: convertedItem.status || 'unknown',
+                original_timestamp: convertedItem.timestamp || '',
+                sent_to_plc_at: new Date().toISOString(),
+                source: 'database_to_plc',
+                batch_id: require('uuid').v4()
+            };
+            
+            // Send to PLC-specific topic
+            const topic = `plc/simulator/data/${convertedItem.device_id || 'unknown'}`;
+            
+            const iotParams = {
+                topic: topic,
+                payload: JSON.stringify(payload)
+            };
+            
+            await iotdata.publish(iotParams).promise();
+            sentCount++;
+            
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        console.log(`✅ Successfully sent ${sentCount} database records to PLCnextSimulator`);
+        
+        res.json({
+            success: true,
+            message: `Successfully sent database data to PLCnextSimulator`,
+            sent_count: sentCount,
+            target_device: 'PLCnextSimulator',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error sending database data to PLC:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Get PLCnextSimulator status
+app.get('/plc-status', async (req, res) => {
+    try {
+        // Check if PLCnextSimulator thing exists
+        const iot = new AWS.Iot({ region: 'eu-north-1' });
+        
+        const thingResponse = await iot.describeThing({
+            thingName: 'PLCnextSimulator'
+        }).promise();
+        
+        res.json({
+            success: true,
+            plc_thing: {
+                name: thingResponse.thingName,
+                arn: thingResponse.thingArn,
+                created: thingResponse.creationDate,
+                version: thingResponse.version
+            },
+            iot_endpoint: 'a1zrj214piv3x3-ats.iot.eu-north-1.amazonaws.com',
+            recommended_topics: {
+                send_commands: 'plc/simulator/commands',
+                send_data: 'plc/simulator/data/{device_id}',
+                receive_status: 'plc/simulator/status'
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error getting PLC status:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+EOF
+
+echo "✅ PLC-specific endpoints created!"
+
+//suggestion 3
+# Test sending data to your PLCnextSimulator
+cat > test_plc_connection.js << 'EOF'
+const AWS = require('aws-sdk');
+
+// Configure AWS
+AWS.config.update({ region: 'eu-north-1' });
+
+// Use the correct IoT Data Endpoint
+const iotdata = new AWS.IotData({
+    endpoint: 'https://a1zrj214piv3x3-ats.iot.eu-north-1.amazonaws.com'
+});
+
+async function testPLCConnection() {
+    console.log('🧪 Testing connection to PLCnextSimulator');
+    console.log('=' .repeat(50));
+    
+    try {
+        // Test 1: Send command to PLC
+        console.log('\n📤 Test 1: Sending command to PLCnextSimulator...');
+        const commandPayload = {
+            target_device: 'PLCnextSimulator',
+            command: 'status_request',
+            timestamp: new Date().toISOString(),
+            source: 'backend_test'
+        };
+        
+        await iotdata.publish({
+            topic: 'plc/simulator/commands',
+            payload: JSON.stringify(commandPayload)
+        }).promise();
+        
+        console.log('✅ Command sent to topic: plc/simulator/commands');
+        
+        // Test 2: Send data to PLC
+        console.log('\n📤 Test 2: Sending data to PLCnextSimulator...');
+        const dataPayload = {
+            target_device: 'PLCnextSimulator',
+            device_id: 'BackendTest_001',
+            sensor_id: 'test_sensor',
+            current: 30,
+            pressure: 1020,
+            status: 'backend_test',
+            timestamp: new Date().toISOString(),
+            source: 'backend_to_plc_test'
+        };
+        
+        await iotdata.publish({
+            topic: 'plc/simulator/data/BackendTest_001',
+            payload: JSON.stringify(dataPayload)
+        }).promise();
+        
+        console.log('✅ Data sent to topic: plc/simulator/data/BackendTest_001');
+        
+        console.log('\n🎉 PLC connection tests completed!');
+        console.log('\n📋 Summary:');
+        console.log('   • IoT Endpoint: a1zrj214piv3x3-ats.iot.eu-north-1.amazonaws.com');
+        console.log('   • Target Device: PLCnextSimulator');
+        console.log('   • Command Topic: plc/simulator/commands');
+        console.log('   • Data Topic: plc/simulator/data/{device_id}');
+        
+    } catch (error) {
+        console.error('❌ Error testing PLC connection:', error);
+    }
+}
+
+testPLCConnection();
+EOF
+
+# Install AWS SDK if not already installed
+npm install aws-sdk 2>/dev/null || echo "AWS SDK already installed or not in Node.js project"
+
+# Run the test
+node test_plc_connection.js
+

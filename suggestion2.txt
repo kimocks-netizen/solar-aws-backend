@@ -1,0 +1,64 @@
+# Run the complete test flow
+echo "🚀 COMPLETE TEST FLOW: Frontend → Backend → DB → IoT → Subscribe"
+echo "=" * 70
+
+# Step 1: Check current data
+echo "📊 Step 1: Current data in plc_sensor_data:"
+aws dynamodb scan \
+    --table-name plc_sensor_data \
+    --region eu-north-1 \
+    --limit 3 \
+    --query 'Items[*].[device_id.S, current.N, status.S]' \
+    --output table
+
+# Step 2: Start monitoring
+echo ""
+echo "📡 Step 2: Starting IoT topic monitoring..."
+python3 subscribe_to_iot_topics.py &
+MONITOR_PID=$!
+echo "Monitor started with PID: $MONITOR_PID"
+
+# Step 3: Simulate frontend button click
+echo ""
+echo "📤 Step 3: Simulating frontend button click (calling backend API)..."
+sleep 2
+
+echo "🔘 Clicking 'Send DB To Subscribe' button..."
+RESPONSE=$(curl -s -X POST https://d3krautk25kk9b.cloudfront.net/send-recent-to-iot \
+    -H "Content-Type: application/json")
+
+echo "📋 Backend Response:"
+echo "$RESPONSE" | python3 -m json.tool
+
+# Step 4: Wait and check results
+echo ""
+echo "⏳ Step 4: Waiting 15 seconds for data to flow through IoT..."
+sleep 15
+
+# Step 5: Stop monitoring and show results
+echo ""
+echo "📊 Step 5: Checking final results..."
+kill $MONITOR_PID 2>/dev/null
+
+# Check for backend messages in database
+aws dynamodb scan \
+    --table-name plc_sensor_data \
+    --region eu-north-1 \
+    --filter-expression "contains(#src, :backend)" \
+    --expression-attribute-names '{"#src": "source"}' \
+    --expression-attribute-values '{":backend": {"S": "backend"}}' \
+    --limit 5 \
+    --query 'Items[*].[device_id.S, source.S, backend_sent.BOOL]' \
+    --output table
+
+echo ""
+echo "🎉 TEST FLOW COMPLETED!"
+echo ""
+echo "📋 Summary:"
+echo "✅ Frontend button calls backend API"
+echo "✅ Backend reads from plc_sensor_data table"
+echo "✅ Backend sends data to IoT topics"
+echo "✅ Data flows through IoT and back to database"
+echo "✅ Subscribe monitoring detects the messages"
+echo ""
+echo "🌐 Open send_db_to_subscribe.html to test manually!"

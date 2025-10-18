@@ -1,0 +1,425 @@
+# Create enhanced Node.js backend
+cat > enhanced_server.js << 'EOF'
+const express = require('express');
+const cors = require('cors');
+const AWS = require('aws-sdk');
+const { v4: uuidv4 } = require('uuid');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// AWS Configuration
+const AWS_REGION = 'eu-north-1';
+AWS.config.update({ region: AWS_REGION });
+
+// AWS Services
+const dynamodb = new AWS.DynamoDB.DocumentClient();
+const iotdata = new AWS.IotData({
+    endpoint: `https://a1234567890123-ats.iot.${AWS_REGION}.amazonaws.com` // You'll need to update this
+});
+
+const TABLE_NAME = 'plc_sensor_data';
+
+// Utility function to handle DynamoDB Decimal conversion
+const convertDynamoDBItem = (item) => {
+    const converted = {};
+    for (const [key, value] of Object.entries(item)) {
+        if (typeof value === 'object' && value !== null && value.constructor.name === 'Big') {
+            converted[key] = parseFloat(value.toString());
+        } else {
+            converted[key] = value;
+        }
+    }
+    return converted;
+};
+
+// Root endpoint
+app.get('/', (req, res) => {
+    res.json({
+        message: "Enhanced Solar Backend Server Running",
+        status: "iot-enabled",
+        timestamp: new Date().toISOString(),
+        database: "DynamoDB",
+        iot_core: "connected",
+        endpoints: {
+            health: "/health",
+            iot_data: "POST /iot-data",
+            get_data: "GET /data",
+            weather_data: "POST /weather-data",
+            get_weather_data: "GET /weather-data",
+            // New endpoints for database-to-IoT
+            send_all_to_iot: "POST /send-to-iot/all",
+            send_recent_to_iot: "POST /send-to-iot/recent",
+            send_test_to_iot: "POST /send-to-iot/test",
+            send_direct_iot: "POST /send-direct-iot",
+            database_stats: "GET /database-stats"
+        }
+    });
+});
+
+// Health check
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        services: {
+            dynamodb: 'connected',
+            iot_core: 'connected'
+        }
+    });
+});
+
+// Get database data
+app.get('/data', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 20;
+        
+        const params = {
+            TableName: TABLE_NAME,
+            Limit: limit
+        };
+        
+        const result = await dynamodb.scan(params).promise();
+        const items = result.Items.map(convertDynamoDBItem);
+        
+        res.json({
+            success: true,
+            items: items,
+            count: items.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error getting data:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Get database statistics
+app.get('/database-stats', async (req, res) => {
+    try {
+        // Get total count
+        const countParams = {
+            TableName: TABLE_NAME,
+            Select: 'COUNT'
+        };
+        const countResult = await dynamodb.scan(countParams).promise();
+        
+        // Get sample data for device count and last update
+        const sampleParams = {
+            TableName: TABLE_NAME,
+            Limit: 100
+        };
+        const sampleResult = await dynamodb.scan(sampleParams).promise();
+        
+        const devices = new Set();
+        let lastTimestamp = null;
+        
+        sampleResult.Items.forEach(item => {
+            if (item.device_id) {
+                devices.add(item.device_id);
+            }
+            if (item.timestamp && (!lastTimestamp || item.timestamp > lastTimestamp)) {
+                lastTimestamp = item.timestamp;
+            }
+        });
+        
+        res.json({
+            success: true,
+            stats: {
+                total_records: countResult.Count,
+                active_devices: devices.size,
+                last_update: lastTimestamp || 'Unknown',
+                sample_size: sampleResult.Items.length
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error getting database stats:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Send all database data to IoT
+app.post('/send-to-iot/all', async (req, res) => {
+    try {
+        console.log('📤 Sending all database data to IoT...');
+        
+        const params = {
+            TableName: TABLE_NAME
+        };
+        
+        const result = await dynamodb.scan(params).promise();
+        let sentCount = 0;
+        
+        for (const item of result.Items) {
+            const convertedItem = convertDynamoDBItem(item);
+            
+            const payload = {
+                source: 'nodejs_backend_all',
+                device_id: convertedItem.device_id || 'unknown',
+                sensor_id: convertedItem.sensor_id || 'unknown',
+                current: convertedItem.current || 0,
+                pressure: convertedItem.pressure || 0,
+                status: convertedItem.status || 'unknown',
+                timestamp: convertedItem.timestamp || '',
+                sent_at: new Date().toISOString(),
+                backend_sent: true,
+                batch_id: uuidv4()
+            };
+            
+            const topic = `nodejs/backend/all/${convertedItem.device_id || 'unknown'}`;
+            
+            const iotParams = {
+                topic: topic,
+                payload: JSON.stringify(payload)
+            };
+            
+            await iotdata.publish(iotParams).promise();
+            sentCount++;
+            
+            // Small delay to avoid throttling
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        console.log(`✅ Successfully sent ${sentCount} records to IoT`);
+        
+        res.json({
+            success: true,
+            message: 'Successfully sent all database data to IoT',
+            sent_count: sentCount,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error sending all data to IoT:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Send recent database data to IoT
+app.post('/send-to-iot/recent', async (req, res) => {
+    try {
+        console.log('📤 Sending recent database data to IoT...');
+        
+        const limit = parseInt(req.body.limit) || 10;
+        
+        const params = {
+            TableName: TABLE_NAME,
+            Limit: limit
+        };
+        
+        const result = await dynamodb.scan(params).promise();
+        let sentCount = 0;
+        
+        for (const item of result.Items) {
+            const convertedItem = convertDynamoDBItem(item);
+            
+            const payload = {
+                source: 'nodejs_backend_recent',
+                device_id: convertedItem.device_id || 'unknown',
+                sensor_id: convertedItem.sensor_id || 'unknown',
+                current: convertedItem.current || 0,
+                pressure: convertedItem.pressure || 0,
+                status: convertedItem.status || 'unknown',
+                timestamp: convertedItem.timestamp || '',
+                sent_at: new Date().toISOString(),
+                backend_sent: true,
+                data_type: 'recent',
+                batch_id: uuidv4()
+            };
+            
+            const topic = `nodejs/backend/recent/${convertedItem.device_id || 'unknown'}`;
+            
+            const iotParams = {
+                topic: topic,
+                payload: JSON.stringify(payload)
+            };
+            
+            await iotdata.publish(iotParams).promise();
+            sentCount++;
+            
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        console.log(`✅ Successfully sent ${sentCount} recent records to IoT`);
+        
+        res.json({
+            success: true,
+            message: 'Successfully sent recent database data to IoT',
+            sent_count: sentCount,
+            limit: limit,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error sending recent data to IoT:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Send test data to IoT
+app.post('/send-to-iot/test', async (req, res) => {
+    try {
+        console.log('🧪 Sending test data to IoT...');
+        
+        const testCount = parseInt(req.body.count) || 3;
+        let sentCount = 0;
+        const batchId = uuidv4();
+        
+        for (let i = 0; i < testCount; i++) {
+            const payload = {
+                source: 'nodejs_backend_test',
+                device_id: `NodeJSTest_${i + 1}`,
+                sensor_id: `nodejs_sensor_${i + 1}`,
+                current: 25 + i * 5,
+                pressure: 1015 + i * 3,
+                status: 'nodejs_test',
+                timestamp: new Date().toISOString(),
+                test_id: `nodejs_test_${Date.now()}_${i + 1}`,
+                backend_sent: true,
+                batch_id: batchId
+            };
+            
+            const topic = `nodejs/backend/test/sensor_${i + 1}`;
+            
+            const iotParams = {
+                topic: topic,
+                payload: JSON.stringify(payload)
+            };
+            
+            await iotdata.publish(iotParams).promise();
+            sentCount++;
+            
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        console.log(`✅ Successfully sent ${sentCount} test messages to IoT`);
+        
+        res.json({
+            success: true,
+            message: 'Successfully sent test data to IoT',
+            sent_count: sentCount,
+            batch_id: batchId,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error sending test data to IoT:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Send direct IoT message
+app.post('/send-direct-iot', async (req, res) => {
+    try {
+        const { topic, message } = req.body;
+        
+        if (!topic) {
+            return res.status(400).json({
+                success: false,
+                error: 'Topic is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        console.log(`📡 Sending direct message to topic: ${topic}`);
+        
+        const payload = {
+            source: 'nodejs_backend_direct',
+            message: message || 'Direct message from Node.js backend',
+            timestamp: new Date().toISOString(),
+            topic: topic,
+            backend_sent: true,
+            message_id: uuidv4()
+        };
+        
+        const iotParams = {
+            topic: topic,
+            payload: JSON.stringify(payload)
+        };
+        
+        await iotdata.publish(iotParams).promise();
+        
+        console.log(`✅ Direct message sent to ${topic}`);
+        
+        res.json({
+            success: true,
+            message: `Successfully sent direct message to ${topic}`,
+            topic: topic,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error sending direct IoT message:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Existing endpoints (weather data, iot data, etc.)
+app.post('/iot-data', async (req, res) => {
+    try {
+        const data = req.body;
+        
+        const params = {
+            TableName: TABLE_NAME,
+            Item: {
+                ...data,
+                timestamp: new Date().toISOString(),
+                id: uuidv4()
+            }
+        };
+        
+        await dynamodb.put(params).promise();
+        
+        res.json({
+            success: true,
+            message: 'IoT data stored successfully',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error storing IoT data:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Start server
+app.listen(port, () => {
+    console.log(`🚀 Enhanced Solar Backend Server running on port ${port}`);
+    console.log(`📊 Database table: ${TABLE_NAME}`);
+    console.log(`🌍 AWS Region: ${AWS_REGION}`);
+    console.log(`📡 IoT Core: Enabled`);
+    console.log(`🔗 New endpoints added for database-to-IoT functionality`);
+});
+
+module.exports = app;
+EOF
+
+echo "✅ Enhanced Node.js backend created!"

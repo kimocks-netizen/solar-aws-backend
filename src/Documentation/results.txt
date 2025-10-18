@@ -1,0 +1,122 @@
+~ $ # Create script to send data from plc_sensor_data to IoT
+~ $ cat > send_db_to_iot.py << 'EOF'
+> import boto3
+> import json
+> import time
+> from decimal import Decimal
+> 
+> class DecimalEncoder(json.JSONEncoder):
+>     def default(self, obj):
+>         if isinstance(obj, Decimal):
+>             return float(obj)
+>         return super(DecimalEncoder, self).default(obj)
+> 
+> def send_db_data_to_iot():
+>     # Initialize clients
+>     dynamodb = boto3.resource('dynamodb', region_name='eu-north-1')
+>     iot_client = boto3.client('iot-data', region_name='eu-north-1')
+>     
+>     # Get data from plc_sensor_data table
+>     table = dynamodb.Table('plc_sensor_data')
+>     
+>     try:
+>         print("📤 Sending data FROM database TO IoT...")
+>         response = table.scan(Limit=5)  # Get 5 items for testing
+>         
+>         for item in response['Items']:
+>             # Create IoT message payload
+>             payload = {
+>                 "source": "database",
+>                 "device_id": item.get('device_id', 'unknown'),
+>                 "sensor_id": item.get('sensor_id', 'unknown'),
+>                 "timestamp": item.get('timestamp', ''),
+>                 "current": item.get('current', 0),
+>                 "pressure": item.get('pressure', 0),
+>                 "status": item.get('status', 'unknown'),
+>                 "sent_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+>             }
+>             
+>             # Define IoT topic
+>             topic = f"database/to/iot/{item.get('device_id', 'unknown')}"
+>             
+>             # Send to IoT
+>             iot_client.publish(
+>                 topic=topic,
+>                 payload=json.dumps(payload, cls=DecimalEncoder)
+>             )
+>             
+>             print(f"✅ Sent to topic: {topic}")
+>             print(f"   Data: {json.dumps(payload, cls=DecimalEncoder, indent=2)}")
+>             time.sleep(1)
+>             
+>         print(f"\n🎉 Successfully sent {len(response['Items'])} messages from database to IoT!")
+>         
+>     except Exception as e:
+>         print(f"❌ Error: {e}")
+> 
+> if __name__ == "__main__":
+>     send_db_data_to_iot()
+> EOF
+~ $ 
+~ $ python3 send_db_to_iot.py
+📤 Sending data FROM database TO IoT...
+✅ Sent to topic: database/to/iot/PLCnextSimulator
+   Data: {
+  "source": "database",
+  "device_id": "PLCnextSimulator",
+  "sensor_id": "unknown",
+  "timestamp": "2025-10-12T12:00:00Z",
+  "current": 16.0,
+  "pressure": 1014.0,
+  "status": "running",
+  "sent_at": "2025-10-16T08:21:57Z"
+}
+✅ Sent to topic: database/to/iot/PLCnextSimulator
+   Data: {
+  "source": "database",
+  "device_id": "PLCnextSimulator",
+  "sensor_id": "unknown",
+  "timestamp": "2025-10-12T14:30:00Z",
+  "current": 19.0,
+  "pressure": 1019.0,
+  "status": "running",
+  "sent_at": "2025-10-16T08:21:59Z"
+}
+✅ Sent to topic: database/to/iot/PLCnextSimulator
+   Data: {
+  "source": "database",
+  "device_id": "PLCnextSimulator",
+  "sensor_id": "unknown",
+  "timestamp": "2025-10-12T15:00:00Z",
+  "current": 14.8,
+  "pressure": 1015.2,
+  "status": "running",
+  "sent_at": "2025-10-16T08:22:00Z"
+}
+✅ Sent to topic: database/to/iot/PLCnextSimulator
+   Data: {
+  "source": "database",
+  "device_id": "PLCnextSimulator",
+  "sensor_id": "unknown",
+  "timestamp": "2025-10-12T16:00:00Z",
+  "current": 15.9,
+  "pressure": 1012.9,
+  "status": "idle",
+  "sent_at": "2025-10-16T08:22:01Z"
+}
+✅ Sent to topic: database/to/iot/PLCnextSimulator_Batch1
+   Data: {
+  "source": "database",
+  "device_id": "PLCnextSimulator_Batch1",
+  "sensor_id": "unknown",
+  "timestamp": "2025-10-12T16:38:42Z",
+  "current": 16.0,
+  "pressure": 1021.0,
+  "status": "batch_test_1",
+  "sent_at": "2025-10-16T08:22:02Z"
+}
+
+🎉 Successfully sent 5 messages from database to IoT!
+
+
+{ "topic_name" : { "S" : "backend/data" }, "message" : { "S" : "Hello IoT from backend!" }, "rule_timestamp" : { "N" : "1760605004127" } }

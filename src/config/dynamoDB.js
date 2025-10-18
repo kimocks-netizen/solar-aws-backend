@@ -10,6 +10,7 @@ AWS.config.update({
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 const PLC_TABLE_NAME = 'plc_sensor_data';
 const WEATHER_TABLE_NAME = 'solar-data';
+const IOT_MESSAGE_LOG_TABLE = 'iot-message-log';
 
 // Test DynamoDB connection on startup
 async function testDynamoConnection() {
@@ -28,4 +29,4 @@ async function testDynamoConnection() {
 
 testDynamoConnection();
 
-module.exports = { dynamodb, PLC_TABLE_NAME, WEATHER_TABLE_NAME, uuidv4 };
+module.exports = { dynamodb, PLC_TABLE_NAME, WEATHER_TABLE_NAME, IOT_MESSAGE_LOG_TABLE, uuidv4 };

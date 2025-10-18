@@ -7,7 +7,7 @@ class RequestParser {
 
     req.on('end', () => {
       try {
-        req.body = JSON.parse(body);
+        req.body = body ? JSON.parse(body) : {};
         callback();
       } catch (error) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
