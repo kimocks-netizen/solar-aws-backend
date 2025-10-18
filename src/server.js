@@ -18,12 +18,15 @@ class Server {
 
     console.log(`${new Date().toISOString()} - ${method} ${path}`);
 
+    // Add query parameters to req object
+    req.query = parsedUrl.query;
+
     // Apply CORS middleware
     CorsMiddleware.handle(req, res, () => {
       const handler = routes[routeKey];
       
       if (handler) {
-        if (method === 'POST') {
+        if (method === 'POST' || method === 'PUT') {
           RequestParser.parseBody(req, res, () => {
             handler(req, res);
           });

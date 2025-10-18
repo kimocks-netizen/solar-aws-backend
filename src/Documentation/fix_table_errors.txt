@@ -1,0 +1,22 @@
+# Update the IoT rule to use timestamp as hash key instead of topic
+aws iot replace-topic-rule \
+    --rule-name plcnextrule \
+    --topic-rule-payload '{
+        "sql": "SELECT *, topic() as topic_name, timestamp() as rule_timestamp FROM \"#\"",
+        "description": "Fixed rule for plcnext table with correct timestamp key",
+        "ruleDisabled": false,
+        "awsIotSqlVersion": "2016-03-23",
+        "actions": [
+            {
+                "dynamoDB": {
+                    "tableName": "plcnext",
+                    "roleArn": "arn:aws:iam::514190630121:role/IoTMessageLoggerRole",
+                    "operation": "INSERT",
+                    "hashKeyField": "timestamp",
+                    "hashKeyValue": "${timestamp()}",
+                    "hashKeyType": "STRING"
+                }
+            }
+        ]
+    }' \
+    --region eu-north-1

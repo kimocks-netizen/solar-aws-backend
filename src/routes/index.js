@@ -4,6 +4,7 @@ const healthRoutes = require('./healthRoutes');
 const iotSenderRoutes = require('./iotSenderRoutes');
 const plcRoutes = require('./plcRoutes');
 const monitorRoutes = require('./monitorRoutes');
+const iotMessageLogRoutes = require('./iotMessageLogRoutes');
 
 const routes = {
   ...iotRoutes,
@@ -11,7 +12,8 @@ const routes = {
   ...healthRoutes,
   ...iotSenderRoutes,
   ...plcRoutes,
-  ...monitorRoutes
+  ...monitorRoutes,
+  ...iotMessageLogRoutes
 };
 
 module.exports = routes;
