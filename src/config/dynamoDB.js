@@ -9,14 +9,14 @@ AWS.config.update({
 
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 const PLC_TABLE_NAME = 'plc_sensor_data';
-const WEATHER_TABLE_NAME = 'solar-data';
+const WEATHER_DATA_TABLE = 'weather_data';
 const IOT_MESSAGE_LOG_TABLE = 'iot-message-log';
 
 // Test DynamoDB connection on startup
 async function testDynamoConnection() {
   try {
     const params1 = { TableName: PLC_TABLE_NAME, Limit: 1 };
-    const params2 = { TableName: WEATHER_TABLE_NAME, Limit: 1 };
+    const params2 = { TableName: WEATHER_DATA_TABLE, Limit: 1 };
     await Promise.all([
       dynamodb.scan(params1).promise(),
       dynamodb.scan(params2).promise()
@@ -29,4 +29,4 @@ async function testDynamoConnection() {
 
 testDynamoConnection();
 
-module.exports = { dynamodb, PLC_TABLE_NAME, WEATHER_TABLE_NAME, IOT_MESSAGE_LOG_TABLE, uuidv4 };
+module.exports = { dynamodb, PLC_TABLE_NAME, WEATHER_DATA_TABLE, IOT_MESSAGE_LOG_TABLE, uuidv4 };

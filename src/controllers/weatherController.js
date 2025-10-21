@@ -1,50 +1,93 @@
-const WeatherModel = require('../models/WeatherModel');
+const weatherService = require('../services/weatherService');
+const cronService = require('../services/cronService');
 
 class WeatherController {
-  static async storeData(req, res) {
+  static async fetchWeather(req, res) {
     try {
-      const data = req.body;
-      console.log('Received weather data:', data);
-
-      const item = await WeatherModel.create(data);
-      console.log('Storing weather item:', item);
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      const { location, lat, lng } = req.body;
+      
+      let weatherData;
+      if (lat && lng) {
+        weatherData = await weatherService.fetchWeatherForLocation(lat, lng);
+      } else if (location) {
+        weatherData = await weatherService.fetchWeatherData(location);
+      } else {
+        weatherData = await weatherService.fetchWeatherData();
+      }
+      
+      res.writeHead(201, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         success: true,
-        message: 'Weather data stored successfully',
-        device_id: item.device_id,
-        timestamp: item.timestamp,
-        received_data: data
+        message: 'Weather data fetched and saved successfully',
+        data: weatherData
       }));
     } catch (error) {
-      console.error('Error processing weather data:', error);
+      console.error('Error fetching weather data:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         success: false,
-        error: 'Failed to store weather data',
-        details: error.message,
-        stack: error.stack
+        error: error.message
       }));
     }
   }
 
-  static async getData(req, res) {
+  static async getLatest(req, res) {
     try {
-      const data = await WeatherModel.getAll(50);
-
+      const location = req.query.location || '52.6526,1.2375';
+      const weatherData = await weatherService.getLatestWeather(location);
+      
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         success: true,
-        count: data.length,
-        data: data
+        data: weatherData
       }));
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error getting latest weather:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         success: false,
-        error: 'Failed to fetch data'
+        error: error.message
+      }));
+    }
+  }
+
+  static async getHistory(req, res) {
+    try {
+      const location = req.query.location || '52.6526,1.2375';
+      const limit = parseInt(req.query.limit) || 50;
+      
+      const weatherData = await weatherService.getWeatherHistory(location, limit);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        data: weatherData
+      }));
+    } catch (error) {
+      console.error('Error getting weather history:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+  }
+
+  static async triggerUpdate(req, res) {
+    try {
+      await cronService.triggerWeatherUpdate();
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        message: 'Weather update triggered successfully'
+      }));
+    } catch (error) {
+      console.error('Error triggering weather update:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
       }));
     }
   }

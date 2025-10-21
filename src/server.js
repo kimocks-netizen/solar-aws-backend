@@ -4,6 +4,7 @@ const routes = require('./routes');
 const CorsMiddleware = require('./middleware/cors');
 const RequestParser = require('./middleware/requestParser');
 const awsIoTService = require('./config/awsIoTService');
+const cronService = require('./services/cronService');
 
 class Server {
   constructor() {
@@ -58,8 +59,11 @@ class Server {
       console.log('  GET  /health - Health check');
       console.log('  POST /iot-data - Receive IoT data');
       console.log('  GET  /data - Get recent PLC data');
-      console.log('  POST /weather-data - Receive weather data');
-      console.log('  GET  /weather-data - Get recent weather data');
+      console.log('  POST /weather/fetch - Fetch weather from Tomorrow.io');
+      console.log('  GET  /weather/latest - Get latest weather data');
+      console.log('  GET  /weather/history - Get weather history');
+      console.log('  POST /weather/update - Manual weather update');
+      console.log('🌤️ Weather cron service initialized');
     });
   }
 }
